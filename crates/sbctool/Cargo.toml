@@ -10,3 +10,9 @@ shellexpand.workspace = true
 ssh2.workspace = true
 ssh_config.workspace = true
 adb_client = { git = "https://github.com/cocool97/adb_client", rev = "d39e9869", package = "adb_client" }
+ratatui = "0.28"
+crossterm = "0.28"
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
