@@ -7,7 +7,7 @@ use std::io::{self, Read, Write};
 use std::net::{TcpStream, SocketAddrV4, Ipv4Addr};
 use std::path::Path;
 use std::process::Command;
-use adb_client::{ADBDeviceExt, ADBServer, ADBServerDevice, ADBTcpDevice};
+use adb_client::{ADBDeviceExt, ADBServer, ADBServerDevice, ADBTcpDevice, ADBUSBDevice, search_adb_devices};
 
 #[derive(Parser)]
 #[command(name = "sbctool")]
@@ -232,18 +232,27 @@ fn main() -> Result<()> {
 				dev.shell_command(&["uname", "-a"], &mut out)?;
 				println!("{}", String::from_utf8_lossy(&out));
 			} else {
-				println!("ADB server: listing devices and running uname on each");
-				let server_addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 5037);
-				let mut server = ADBServer::new(server_addr);
-				let devices = server.devices_long()?;
-				if devices.is_empty() { println!("No ADB devices found."); return Ok(()) }
-				for d in devices {
-					let serial = d.identifier.clone();
-					println!("\n--- {} ({:?}) ---", serial, d.state);
-					let mut dev = ADBServerDevice::new(serial.clone(), Some(server_addr));
+				// Try direct USB first, fallback to ADB server
+				if let Ok(Some((vid, pid))) = search_adb_devices() {
+					println!("ADB USB (direct): found device {:04x}:{:04x}", vid, pid);
+					let mut dev = ADBUSBDevice::new(vid, pid)?;
 					let mut out = Vec::new();
 					dev.shell_command(&["uname", "-a"], &mut out)?;
 					println!("{}", String::from_utf8_lossy(&out));
+				} else {
+					println!("ADB server: listing devices and running uname on each");
+					let server_addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 5037);
+					let mut server = ADBServer::new(server_addr);
+					let devices = server.devices_long()?;
+					if devices.is_empty() { println!("No ADB devices found."); return Ok(()) }
+					for d in devices {
+						let serial = d.identifier.clone();
+						println!("\n--- {} ({:?}) ---", serial, d.state);
+						let mut dev = ADBServerDevice::new(serial.clone(), Some(server_addr));
+						let mut out = Vec::new();
+						dev.shell_command(&["uname", "-a"], &mut out)?;
+						println!("{}", String::from_utf8_lossy(&out));
+					}
 				}
 			}
 		}
