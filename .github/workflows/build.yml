@@ -11,8 +11,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        target:
+        include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact: sbctool-linux
@@ -20,7 +19,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             artifact: sbctool-windows
 
-    runs-on: ${{ matrix.os.target.os }}
+    runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v4
@@ -28,7 +27,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
-        targets: ${{ matrix.os.target.target }}
+        targets: ${{ matrix.target }}
 
     - name: Cache cargo registry
       uses: actions/cache@v3
@@ -41,18 +40,18 @@ jobs:
           ${{ runner.os }}-cargo-
 
     - name: Build
-      run: cargo build --release --target ${{ matrix.os.target.target }}
+      run: cargo build --release --target ${{ matrix.target }}
 
     - name: Upload Linux artifact
-      if: matrix.os.target.os == 'ubuntu-latest'
+      if: matrix.os == 'ubuntu-latest'
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ matrix.os.target.artifact }}
-        path: target/${{ matrix.os.target.target }}/release/sbctool
+        name: ${{ matrix.artifact }}
+        path: target/${{ matrix.target }}/release/sbctool
 
     - name: Upload Windows artifact
-      if: matrix.os.target.os == 'windows-latest'
+      if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ matrix.os.target.artifact }}
-        path: target/${{ matrix.os.target.target }}/release/sbctool.exe
+        name: ${{ matrix.artifact }}
+        path: target/${{ matrix.target }}/release/sbctool.exe
