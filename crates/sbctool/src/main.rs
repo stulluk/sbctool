@@ -235,7 +235,19 @@ fn main() -> Result<()> {
 				// Try direct USB first, fallback to ADB server
 				if let Ok(Some((vid, pid))) = search_adb_devices() {
 					println!("ADB USB (direct): found device {:04x}:{:04x}", vid, pid);
-					let mut dev = ADBUSBDevice::new(vid, pid)?;
+					
+					// Try to create USB device, with retry on resource busy
+					let mut dev = match ADBUSBDevice::new(vid, pid) {
+						Ok(dev) => dev,
+						Err(e) if e.to_string().contains("Resource busy") => {
+							println!("USB device busy, trying to kill ADB server and retry...");
+							let _ = Command::new("adb").arg("kill-server").output();
+							std::thread::sleep(std::time::Duration::from_millis(500));
+							ADBUSBDevice::new(vid, pid)?
+						},
+						Err(e) => return Err(e.into()),
+					};
+					
 					let mut out = Vec::new();
 					dev.shell_command(&["uname", "-a"], &mut out)?;
 					println!("{}", String::from_utf8_lossy(&out));
