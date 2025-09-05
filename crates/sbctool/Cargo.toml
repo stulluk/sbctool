@@ -9,4 +9,4 @@ clap.workspace = true
 shellexpand.workspace = true
 ssh2.workspace = true
 ssh_config.workspace = true
-adb_client = { git = "https://github.com/cocool97/adb_client", package = "adb_client" }
+adb_client = { git = "https://github.com/cocool97/adb_client", rev = "d39e9869", package = "adb_client" }

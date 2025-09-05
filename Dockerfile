@@ -1,5 +1,5 @@
-# Multi-stage build for sbctool
-FROM rust:1.75-slim as builder
+# Multi-stage build for sbctool (Linux + Windows binaries)
+FROM rust:1.80-slim as builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -8,7 +8,14 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     libusb-1.0-0-dev \
     mingw-w64 \
+    curl \
+    cmake \
+    nasm \
     && rm -rf /var/lib/apt/lists/*
+
+# Install latest Rust nightly
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Set working directory
 WORKDIR /app
@@ -23,21 +30,7 @@ RUN cargo build --release
 RUN rustup target add x86_64-pc-windows-gnu
 RUN cargo build --release --target x86_64-pc-windows-gnu
 
-# Runtime stage
-FROM debian:bookworm-slim
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    libssl3 \
-    libusb-1.0-0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy binaries
-COPY --from=builder /app/target/release/sbctool /usr/local/bin/sbctool
-COPY --from=builder /app/target/x86_64-pc-windows-gnu/release/sbctool.exe /usr/local/bin/sbctool.exe
-
-# Set permissions
-RUN chmod +x /usr/local/bin/sbctool
-
-# Default command
-CMD ["sbctool", "--help"]
+# Output stage - just copy binaries
+FROM scratch as output
+COPY --from=builder /app/target/release/sbctool /sbctool-linux
+COPY --from=builder /app/target/x86_64-pc-windows-gnu/release/sbctool.exe /sbctool-windows.exe
