@@ -107,33 +107,59 @@ Linux localhost 5.15.170-android14-11-g0552e0fe0b84-ab17825 #1 SMP PREEMPT Thu A
 
 ## 🔧 Building
 
+### Quick Start
+
+```sh
+# Clone and build
+git clone https://github.com/stulluk/sbctool.git
+cd sbctool
+cargo build --release
+```
+
 ### Prerequisites
-- Rust 1.70+ and Cargo
-- For Windows cross-compilation: `mingw-w64`
+
+- **Rust**: 1.70+ with Cargo
+- **System dependencies**: See [BUILDING.md](BUILDING.md) for detailed platform-specific requirements
 
 ### Build Commands
 
+#### Current Platform
 ```sh
-# Clone repository
-git clone https://github.com/stulluk/sbctool.git
-cd sbctool
+# Debug build
+cargo build
 
-# Build for current platform
+# Release build
 cargo build --release
+```
 
-# Cross-compile for Windows (from Linux)
+#### Cross-Compilation
+```sh
+# Linux to Windows
 rustup target add x86_64-pc-windows-gnu
 sudo apt install mingw-w64  # Ubuntu/Debian
 cargo build --release --target x86_64-pc-windows-gnu
 ```
 
+#### Docker Build
+```sh
+# Build with Docker
+docker build -t sbctool .
+
+# Run with USB access
+docker run --rm --privileged -v /dev/bus/usb:/dev/bus/usb sbctool adb
+```
+
 ### GitHub Actions
 
-The project includes GitHub Actions for automated cross-platform builds:
+Automated cross-platform builds:
 - **Linux**: `x86_64-unknown-linux-gnu`
 - **Windows**: `x86_64-pc-windows-msvc`
 
-Build artifacts are available in the Actions tab.
+**Download binaries**: Go to [Actions tab](https://github.com/stulluk/sbctool/actions) → Latest build → Download artifacts
+
+### Detailed Build Instructions
+
+For comprehensive build instructions, troubleshooting, and advanced configuration, see [BUILDING.md](BUILDING.md).
 
 ## 📋 Platform Support
 
