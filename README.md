@@ -14,6 +14,9 @@ A cross-platform CLI tool to collect information from various Single Board Compu
 - **Smart connection detection**: Automatic USB/TCP/Server mode detection
 - **SSH alias support**: Resolves SSH config aliases using `ssh -G`
 - **Direct USB ADB**: Native USB device communication on Windows and Linux
+- **🆕 TUI Interface**: Real-time Text-based User Interface with system monitoring
+- **🆕 Comprehensive System Info**: Chip detection, memory, uptime, OS information
+- **🆕 Real-time Logs**: logcat (Android) and journald/syslog (Linux) streaming
 
 ## 🏗️ Architecture
 
@@ -31,6 +34,24 @@ A cross-platform CLI tool to collect information from various Single Board Compu
 - Automatic mode detection based on connection parameters
 
 ## 🚀 Usage
+
+### TUI Interface (New!)
+
+`sbctool` now launches a real-time Text-based User Interface (TUI) for system monitoring:
+
+```sh
+# SSH connection with TUI
+sbctool ssh <user@host|alias>
+
+# ADB connection with TUI
+sbctool adb [-s <serial>]
+```
+
+**TUI Features:**
+- **Left Panel**: System information (chipset, CPU, memory, uptime, OS)
+- **Right Panel**: Real-time logs (logcat for Android, journald/syslog for Linux)
+- **Helper Bar**: Keyboard shortcuts at the bottom
+- **Controls**: `q` or `ESC` to exit, `r` to refresh
 
 ### SSH Backend
 
@@ -180,10 +201,42 @@ For comprehensive build instructions, troubleshooting, and advanced configuratio
 - `ssh_config`: SSH configuration parsing
 - `adb_client`: Pure Rust ADB client implementation
 
+### TUI Dependencies
+- `ratatui`: Text-based User Interface framework
+- `crossterm`: Terminal manipulation and control
+- `tokio`: Asynchronous runtime for real-time updates
+- `serde`: Serialization framework
+- `serde_json`: JSON serialization support
+- `chrono`: Date and time handling
+
 ### Platform-Specific
 - `rusb`: USB device communication (Windows/Linux)
 - `libssh2-sys`: SSH protocol implementation
 - `openssl-sys`: Cryptographic operations
+
+## 📊 System Information Collection
+
+### Linux SBC Support
+- **Chip Detection**: Device tree parsing (`/proc/device-tree/model`, `/proc/device-tree/compatible`)
+- **CPU Info**: ARM implementer codes and architecture detection
+- **Memory**: Total system memory from `/proc/meminfo`
+- **Uptime**: System uptime from `uptime` command
+- **OS Info**: Distribution information from `/etc/os-release`
+
+### Android Device Support
+- **Chip Detection**: Device properties (`getprop ro.product.manufacturer`, `ro.product.model`)
+- **CPU Info**: ARM architecture and core count
+- **Memory**: Total memory from `free` command
+- **Uptime**: System uptime from `uptime` command
+- **OS Info**: Android version from `getprop ro.build.version.release`
+
+### Supported Chipsets
+- **Rockchip**: RK3399, RK3568, RK3588
+- **Amlogic**: G12, S905, S922
+- **Allwinner**: Various SoCs
+- **Broadcom**: BCM series
+- **Qualcomm**: Snapdragon series
+- **Nvidia**: Jetson series
 
 ## 🧪 Testing
 
@@ -194,15 +247,19 @@ For comprehensive build instructions, troubleshooting, and advanced configuratio
 
 ### Test Commands
 ```sh
-# SSH test
+# SSH test (Khadas Edge-V - Rockchip RK3399)
 sbctool ssh khadas
 
 # ADB USB test (Windows)
 sbctool adb
 
-# ADB TCP test
+# ADB TCP test (OHM - Amlogic)
 sbctool adb -s 192.168.1.215
 ```
+
+### Tested Devices
+- **Khadas Edge-V**: Rockchip RK3399, Ubuntu 22.04, 4GB RAM
+- **OHM**: Amlogic, Android 14, 1.9GB RAM
 
 ## 🤝 Contributing
 
