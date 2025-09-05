@@ -1,0 +1,12 @@
+[package]
+name = "sbctool"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+shellexpand.workspace = true
+ssh2.workspace = true
+ssh_config.workspace = true
+adb_client = { git = "https://github.com/cocool97/adb_client", package = "adb_client" }
