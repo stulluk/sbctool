@@ -1,11 +1,14 @@
 use anyhow::Result;
 use crate::tui::LogEntry;
+use crate::ssh_session::SSHSession;
 use tokio::time::{sleep, Duration};
+use std::sync::Arc;
 
 pub struct LogCollector {
     connection_type: String,
     target: String,
     is_android: bool,
+    ssh_session: Option<Arc<SSHSession>>,
 }
 
 impl LogCollector {
@@ -14,6 +17,16 @@ impl LogCollector {
             connection_type: connection_type.to_string(),
             target: target.to_string(),
             is_android,
+            ssh_session: None,
+        }
+    }
+    
+    pub fn new_with_ssh_session(connection_type: &str, target: &str, is_android: bool, ssh_session: Arc<SSHSession>) -> Self {
+        Self {
+            connection_type: connection_type.to_string(),
+            target: target.to_string(),
+            is_android,
+            ssh_session: Some(ssh_session),
         }
     }
 

@@ -31,6 +31,6 @@ RUN rustup target add x86_64-pc-windows-gnu
 RUN cargo build --release --target x86_64-pc-windows-gnu
 
 # Output stage - just copy binaries
-FROM scratch as output
+FROM alpine:latest as output
 COPY --from=builder /app/target/release/sbctool /sbctool-linux
 COPY --from=builder /app/target/x86_64-pc-windows-gnu/release/sbctool.exe /sbctool-windows.exe

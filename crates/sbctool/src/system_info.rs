@@ -1,9 +1,12 @@
 use anyhow::Result;
 use crate::tui::SystemInfo;
+use crate::ssh_session::SSHSession;
+use std::sync::Arc;
 
 pub struct SystemInfoCollector {
     connection_type: String,
     target: String,
+    ssh_session: Option<Arc<SSHSession>>,
 }
 
 impl SystemInfoCollector {
@@ -11,10 +14,91 @@ impl SystemInfoCollector {
         Self {
             connection_type: connection_type.to_string(),
             target: target.to_string(),
+            ssh_session: None,
         }
+    }
+    
+    pub async fn new_with_ssh_session(connection_type: &str, target: &str) -> Result<Self> {
+        let mut collector = Self::new(connection_type, target);
+        
+        if connection_type == "ssh" {
+            let ssh_session = SSHSession::new(target).await?;
+            collector.ssh_session = Some(Arc::new(ssh_session));
+        }
+        
+        Ok(collector)
     }
 
     pub async fn collect_system_info(&self) -> Result<SystemInfo> {
+        // If we have a persistent SSH session, use batch commands for better performance
+        if let Some(ssh_session) = &self.ssh_session {
+            self.collect_system_info_batch(ssh_session).await
+        } else {
+            self.collect_system_info_sequential().await
+        }
+    }
+    
+    async fn collect_system_info_batch(&self, ssh_session: &SSHSession) -> Result<SystemInfo> {
+        // Execute multiple commands in batch for better performance
+        let commands = vec![
+            "uname -a",
+            "hostname", 
+            "cat /proc/device-tree/model 2>/dev/null || echo 'No model'",
+            "cat /proc/device-tree/compatible 2>/dev/null || echo 'No compatible'",
+            "cat /proc/cpuinfo",
+            "cat /proc/meminfo",
+            "cat /proc/uptime",
+            "cat /etc/os-release 2>/dev/null || echo 'No os-release'"
+        ];
+        
+        let results = ssh_session.execute_multiple_commands(&commands).await?;
+        
+        // Parse results
+        let uname_output = &results[0];
+        let hostname = results[1].trim().to_string();
+        
+        // Parse uname output
+        let parts: Vec<&str> = uname_output.split_whitespace().collect();
+        let kernel = if parts.len() > 2 {
+            format!("{} {}", parts[0], parts[2])
+        } else {
+            parts[0].to_string()
+        };
+        
+        let architecture = if parts.len() > 12 {
+            parts[12].to_string()
+        } else {
+            "unknown".to_string()
+        };
+
+        // Parse chip info from device tree
+        let chip = self.parse_chip_from_batch_results(&results[2], &results[3], &results[4]);
+        
+        // Parse CPU info
+        let cpu_info = self.parse_cpu_from_cpuinfo(&results[4]);
+        
+        // Parse memory info
+        let memory = self.parse_memory_from_meminfo(&results[5]);
+        
+        // Parse uptime
+        let uptime = self.parse_uptime_from_proc(&results[6]);
+        
+        // Parse OS info
+        let os_info = self.parse_os_from_release(&results[7]);
+
+        Ok(SystemInfo {
+            hostname,
+            kernel,
+            architecture,
+            chip,
+            cpu_info,
+            memory,
+            uptime,
+            os_info,
+        })
+    }
+    
+    async fn collect_system_info_sequential(&self) -> Result<SystemInfo> {
         let uname_output = self.execute_command("uname -a").await?;
         let hostname = self.execute_command("hostname").await?.trim().to_string();
         
@@ -61,7 +145,15 @@ impl SystemInfoCollector {
 
     async fn execute_command(&self, command: &str) -> Result<String> {
         match self.connection_type.as_str() {
-            "ssh" => self.execute_ssh_command(command).await,
+            "ssh" => {
+                if let Some(ssh_session) = &self.ssh_session {
+                    // Use persistent SSH session
+                    ssh_session.execute_command(command).await
+                } else {
+                    // Fallback to old method
+                    self.execute_ssh_command(command).await
+                }
+            },
             "adb" => self.execute_adb_command(command).await,
             _ => Err(anyhow::anyhow!("Unknown connection type: {}", self.connection_type)),
         }
@@ -69,6 +161,9 @@ impl SystemInfoCollector {
 
     async fn execute_ssh_command(&self, command: &str) -> Result<String> {
         use std::process::Command;
+        
+        println!("DEBUG: execute_ssh_command called with command: {}", command);
+        println!("DEBUG: target: {}", self.target);
         
         // Parse target to get user@host
         let (user, host) = if let Some((u, h)) = self.target.split_once('@') {
@@ -597,5 +692,141 @@ impl SystemInfoCollector {
         }
 
         Ok("Unknown".to_string())
+    }
+    
+    // Batch parsing methods for better performance
+    fn parse_chip_from_batch_results(&self, model: &str, compatible: &str, cpuinfo: &str) -> Option<String> {
+        // Try device tree model first
+        if !model.trim().is_empty() && model.trim() != "No model" {
+            return Some(model.trim().to_string());
+        }
+        
+        // Try compatible string
+        if !compatible.trim().is_empty() && compatible.trim() != "No compatible" {
+            if let Some(chip) = self.parse_chip_from_compatible(compatible.trim()) {
+                return Some(chip);
+            }
+        }
+        
+        // Fallback to cpuinfo
+        self.parse_chip_from_cpuinfo(cpuinfo)
+    }
+    
+    fn parse_cpu_from_cpuinfo(&self, cpuinfo: &str) -> String {
+        // Try to get model name first
+        for line in cpuinfo.lines() {
+            if line.starts_with("model name") || line.starts_with("Processor") {
+                let parts: Vec<&str> = line.split(':').collect();
+                if parts.len() > 1 {
+                    return parts[1].trim().to_string();
+                }
+            }
+        }
+
+        // For ARM devices, try to get CPU implementer info
+        let mut implementer = None;
+        let mut architecture = None;
+        let mut processor_count = 0;
+        
+        for line in cpuinfo.lines() {
+            if line.starts_with("processor") {
+                processor_count += 1;
+            } else if line.starts_with("CPU implementer") {
+                let parts: Vec<&str> = line.split(':').collect();
+                if parts.len() > 1 {
+                    implementer = Some(parts[1].trim());
+                }
+            } else if line.starts_with("CPU architecture") {
+                let parts: Vec<&str> = line.split(':').collect();
+                if parts.len() > 1 {
+                    architecture = Some(parts[1].trim());
+                }
+            }
+        }
+
+        // Build CPU description
+        let mut cpu_desc = String::new();
+        if let Some(impl_code) = implementer {
+            match impl_code {
+                "0x41" => cpu_desc.push_str("ARM"),
+                "0x42" => cpu_desc.push_str("Broadcom"),
+                "0x51" => cpu_desc.push_str("Qualcomm"),
+                _ => cpu_desc.push_str("Unknown"),
+            }
+        }
+        
+        if let Some(arch) = architecture {
+            if !cpu_desc.is_empty() {
+                cpu_desc.push_str(" ");
+            }
+            cpu_desc.push_str(&format!("v{}", arch));
+        }
+        
+        if processor_count > 0 {
+            if !cpu_desc.is_empty() {
+                cpu_desc.push_str(" ");
+            }
+            cpu_desc.push_str(&format!("({} cores)", processor_count));
+        }
+        
+        if cpu_desc.is_empty() {
+            cpu_desc = format!("{} cores", processor_count);
+        }
+        
+        cpu_desc
+    }
+    
+    fn parse_memory_from_meminfo(&self, meminfo: &str) -> String {
+        for line in meminfo.lines() {
+            if line.starts_with("MemTotal") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() > 1 {
+                    let kb: u64 = parts[1].parse().unwrap_or(0);
+                    let mb = kb / 1024;
+                    let gb = mb / 1024;
+                    
+                    if gb > 0 {
+                        return format!("{} GB", gb);
+                    } else {
+                        return format!("{} MB", mb);
+                    }
+                }
+            }
+        }
+        "Unknown".to_string()
+    }
+    
+    fn parse_uptime_from_proc(&self, uptime: &str) -> String {
+        let parts: Vec<&str> = uptime.split_whitespace().collect();
+        
+        if let Some(seconds_str) = parts.first() {
+            if let Ok(seconds) = seconds_str.parse::<f64>() {
+                let days = (seconds / 86400.0) as u32;
+                let hours = ((seconds % 86400.0) / 3600.0) as u32;
+                let minutes = ((seconds % 3600.0) / 60.0) as u32;
+                
+                if days > 0 {
+                    return format!("{}d {}h {}m", days, hours, minutes);
+                } else if hours > 0 {
+                    return format!("{}h {}m", hours, minutes);
+                } else {
+                    return format!("{}m", minutes);
+                }
+            }
+        }
+        "Unknown".to_string()
+    }
+    
+    fn parse_os_from_release(&self, os_release: &str) -> String {
+        for line in os_release.lines() {
+            if line.starts_with("PRETTY_NAME") {
+                let parts: Vec<&str> = line.split('=').collect();
+                if parts.len() > 1 {
+                    let value = parts[1].trim_matches('"');
+                    return value.to_string();
+                }
+            }
+        }
+        "Unknown".to_string()
     }
 }

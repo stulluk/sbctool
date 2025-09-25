@@ -4,6 +4,7 @@ use clap::Parser;
 mod tui;
 mod system_info;
 mod log_collector;
+mod ssh_session;
 
 use tui::{TuiApp, setup_terminal, restore_terminal};
 use system_info::SystemInfoCollector;
@@ -83,7 +84,7 @@ async fn launch_ssh_tui(target: &str) -> Result<()> {
 		message: format!("Connecting to {} via SSH", target),
 	});
 	
-	// Create system info collector
+	// Create system info collector (temporarily disable persistent SSH for testing)
 	let collector = SystemInfoCollector::new("ssh", target);
 	
 	// Spawn async task to collect system info
