@@ -301,7 +301,7 @@ impl LogCollector {
             }
         };
 
-        // Execute command via SSH
+        // Execute command via SSH with timeout and terminal reset
         let output = Command::new("ssh")
             .arg("-o")
             .arg("ConnectTimeout=5")
@@ -311,8 +311,14 @@ impl LogCollector {
             .arg("ServerAliveCountMax=3")
             .arg("-o")
             .arg("BatchMode=yes")
+            .arg("-o")
+            .arg("RequestTTY=no")
+            .arg("-o")
+            .arg("StrictHostKeyChecking=no")
+            .arg("-o")
+            .arg("UserKnownHostsFile=/dev/null")
             .arg(&format!("{}@{}", user, host))
-            .arg(command)
+            .arg(&format!("timeout 30 bash -c '{}'", command))
             .output()?;
 
         if output.status.success() {

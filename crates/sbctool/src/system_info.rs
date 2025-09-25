@@ -162,8 +162,6 @@ impl SystemInfoCollector {
     async fn execute_ssh_command(&self, command: &str) -> Result<String> {
         use std::process::Command;
         
-        println!("DEBUG: execute_ssh_command called with command: {}", command);
-        println!("DEBUG: target: {}", self.target);
         
         // Parse target to get user@host
         let (user, host) = if let Some((u, h)) = self.target.split_once('@') {
@@ -197,7 +195,7 @@ impl SystemInfoCollector {
             }
         };
 
-        // Execute command via SSH
+        // Execute command via SSH with timeout and terminal reset
         let output = Command::new("ssh")
             .arg("-o")
             .arg("ConnectTimeout=5")
@@ -207,8 +205,14 @@ impl SystemInfoCollector {
             .arg("ServerAliveCountMax=3")
             .arg("-o")
             .arg("BatchMode=yes")
+            .arg("-o")
+            .arg("RequestTTY=no")
+            .arg("-o")
+            .arg("StrictHostKeyChecking=no")
+            .arg("-o")
+            .arg("UserKnownHostsFile=/dev/null")
             .arg(&format!("{}@{}", user, host))
-            .arg(command)
+            .arg(&format!("timeout 30 bash -c '{}'", command))
             .output()?;
 
         if output.status.success() {
