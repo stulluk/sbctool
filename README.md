@@ -2,6 +2,10 @@
 
 A cross-platform CLI tool to collect information from various Single Board Computers (SBCs) via SSH and ADB.
 
+![sbctool TUI Interface](images/sbctool-tui-screenshot.png)
+
+*Real-time TUI interface showing system information and live logs from a Khadas Edge-V SBC*
+
 ## 🎯 Purpose
 
 `sbctool` is a pure Rust command-line utility designed to run on host PCs (Linux, Windows, macOS) and gather information from target SBCs. It provides a unified interface for interacting with different SBCs through SSH and ADB backends, with **zero external binary dependencies**.
