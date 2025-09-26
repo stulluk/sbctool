@@ -26,12 +26,18 @@ enum Commands {
 		/// The user@host or ssh_config alias to connect to (e.g., root@192.168.1.4, my-sbc)
 		#[arg(value_name = "TARGET")]
 		target: String,
+		/// Timeout in seconds for TUI session (0 = no timeout)
+		#[arg(long, default_value = "0")]
+		timeout: u64,
 	},
 	/// Connect to an SBC using ADB
 	Adb {
 		/// The device serial to connect to (e.g., 192.168.1.15:5555)
 		#[arg(short, long)]
 		serial: Option<String>,
+		/// Timeout in seconds for TUI session (0 = no timeout)
+		#[arg(long, default_value = "0")]
+		timeout: u64,
 		/// Extra args, e.g. allowing `sbctool adb help`
 		#[arg(value_name = "ARGS", trailing_var_arg = true)]
 		extra: Vec<String>,
@@ -43,32 +49,32 @@ async fn main() -> Result<()> {
 	let cli = Cli::parse();
 
 	match &cli.command {
-		Commands::Ssh { target } => {
+		Commands::Ssh { target, timeout } => {
 			// Support `sbctool ssh help` style help
 			if target == "help" || target == "--help" || target == "-h" {
-				println!("Usage: sbctool ssh <user@host|alias>\n\nExamples:\n  sbctool ssh user@192.168.1.4\n  sbctool ssh khadas\n\nNotes:\n  - Aliases are resolved using 'ssh -G' when available; falls back to ~/.ssh/config and /etc/ssh/ssh_config.\n  - If user is omitted, tries ssh config, then $USER/LOGNAME.\n  - Launches TUI interface for real-time monitoring.\n");
+				println!("Usage: sbctool ssh <user@host|alias> [--timeout SECONDS]\n\nExamples:\n  sbctool ssh user@192.168.1.4\n  sbctool ssh khadas\n  sbctool ssh khadas --timeout=10\n\nNotes:\n  - Aliases are resolved using 'ssh -G' when available; falls back to ~/.ssh/config and /etc/ssh/ssh_config.\n  - If user is omitted, tries ssh config, then $USER/LOGNAME.\n  - Launches TUI interface for real-time monitoring.\n  - Use --timeout=0 for no timeout (default).\n");
 				return Ok(())
 			}
 			
 			// Launch TUI for SSH connection
-			launch_ssh_tui(target).await?;
+			launch_ssh_tui(target, *timeout).await?;
 		}
-		Commands::Adb { serial, extra } => {
+		Commands::Adb { serial, timeout, extra } => {
 			// handle `sbctool adb help`
 			if extra.iter().any(|a| a == "help" || a == "--help" || a == "-h") {
-				println!("Usage: sbctool adb [-s SERIAL]\n\nExamples:\n  sbctool adb\n  sbctool adb -s <usb-serial>\n  sbctool adb -s <ip>\n  sbctool adb -s <ip:port>\n\nBehavior:\n  - No -s: if exactly one USB device -> use USB; else list devices (server).\n  - -s ip:port: connect TCP direct to adbd.\n  - -s ip: default port 5555.\n  - -s usb-serial: use adb server to talk to that device.\n  - Launches TUI interface for real-time monitoring.");
+				println!("Usage: sbctool adb [-s SERIAL] [--timeout SECONDS]\n\nExamples:\n  sbctool adb\n  sbctool adb -s <usb-serial>\n  sbctool adb -s <ip>\n  sbctool adb -s <ip:port>\n  sbctool adb --timeout=10\n\nBehavior:\n  - No -s: if exactly one USB device -> use USB; else list devices (server).\n  - -s ip:port: connect TCP direct to adbd.\n  - -s ip: default port 5555.\n  - -s usb-serial: use adb server to talk to that device.\n  - Launches TUI interface for real-time monitoring.\n  - Use --timeout=0 for no timeout (default).");
 				return Ok(())
 			}
 			
 			// Launch TUI for ADB connection
-			launch_adb_tui(serial.clone()).await?;
+			launch_adb_tui(serial.clone(), *timeout).await?;
 		}
 	}
 
 	Ok(())
 }
 
-async fn launch_ssh_tui(target: &str) -> Result<()> {
+async fn launch_ssh_tui(target: &str, timeout: u64) -> Result<()> {
 	println!("Connecting to {} via SSH...", target);
 
 	// Setup terminal
@@ -138,7 +144,7 @@ async fn launch_ssh_tui(target: &str) -> Result<()> {
 	});
 	
 	// Run TUI
-	app.run(&mut terminal)?;
+	app.run(&mut terminal, timeout)?;
 	
 	// Restore terminal
 	restore_terminal(&mut terminal)?;
@@ -146,7 +152,7 @@ async fn launch_ssh_tui(target: &str) -> Result<()> {
 	Ok(())
 }
 
-async fn launch_adb_tui(serial: Option<String>) -> Result<()> {
+async fn launch_adb_tui(serial: Option<String>, timeout: u64) -> Result<()> {
 	let target = if let Some(s) = &serial {
 		s.clone()
 	} else {
@@ -203,7 +209,7 @@ async fn launch_adb_tui(serial: Option<String>) -> Result<()> {
 	});
 	
 	// Run TUI
-	app.run(&mut terminal)?;
+	app.run(&mut terminal, timeout)?;
 	
 	// Restore terminal
 	restore_terminal(&mut terminal)?;

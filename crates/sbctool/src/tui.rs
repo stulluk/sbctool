@@ -69,9 +69,26 @@ impl TuiApp {
         }
     }
 
-    pub fn run(&mut self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
+    pub fn run(&mut self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, timeout_seconds: u64) -> Result<()> {
+        let start_time = std::time::Instant::now();
+        
         loop {
             terminal.draw(|f| self.ui(f))?;
+
+            // Check for timeout
+            if timeout_seconds > 0 {
+                let elapsed = start_time.elapsed().as_secs();
+                if elapsed >= timeout_seconds {
+                    // Add timeout log
+                    self.add_log(LogEntry {
+                        timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                        level: "INFO".to_string(),
+                        message: format!("Timeout reached ({}s), exiting TUI...", timeout_seconds),
+                    });
+                    self.should_quit = true;
+                    break;
+                }
+            }
 
             if event::poll(Duration::from_millis(100))? {
                             if let Event::Key(key) = event::read()? {
