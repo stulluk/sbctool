@@ -2,7 +2,7 @@
 
 A cross-platform CLI tool to collect information from various Single Board Computers (SBCs) via SSH and ADB.
 
-![sbctool TUI Interface](images/sbctool-tui-screenshot.png)
+![sbctool TUI Interface](images/sbctool-tui-interface.png)
 
 *Real-time TUI interface showing system information and live logs from a Khadas Edge-V SBC*
 
